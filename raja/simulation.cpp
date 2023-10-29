@@ -12,6 +12,10 @@
 // line argument.
 ////////////////////////////////////////////////////////////////////////////////////
 
+#if defined(RAJA_ENABLE_CUDA)
+using policy = RAJA::cuda_exec<256>;
+#endif
+
 void run_event_based_simulation(Input input, SimulationData GSD, unsigned long * vhash_result )
 {
 	////////////////////////////////////////////////////////////////////////////////
@@ -22,8 +26,44 @@ void run_event_based_simulation(Input input, SimulationData GSD, unsigned long *
 	int nthreads = 256;
 	int nblocks = ceil( (double) input.lookups / (double) nthreads);
 
-	xs_lookup_kernel_baseline<<<nblocks, nthreads>>>( input, GSD );
-	gpuErrchk( cudaPeekAtLastError() );
+	RAJA::forall<policy>(RAJA::RangeSegment(0, input.lookups), [=] RAJA_DEVICE (int i) {
+		if (i < input.lookups) {
+			uint64_t seed = STARTING_SEED;
+			
+			seed = fast_forward_LCG(seed, 2*i);
+			double E = LCG_random_double(&seed);
+			int mat  = pick_mat(&seed);
+
+			double macro_xs[4] = {0};
+
+			calculate_macro_xs(macro_xs,
+							   mat,
+							   E,
+							   input,
+							   GSD.num_nucs,
+							   GSD.mats,
+							   GSD.max_num_nucs,
+							   GSD.concs,
+							   GSD.n_windows,
+							   GSD.pseudo_K0RS,
+							   GSD.windows,
+							   GSD.poles,
+							   GSD.max_num_windows,
+							   GSD.max_num_poles);
+
+			double max = -DBL_MAX;
+			int max_idx = 0;
+			for (int x = 0; x < 4; x++) {
+				if (macro_xs[x] > max) {
+					max = macro_xs[x];
+					max_idx = x;
+				}
+			}
+
+			GSD.verification[i] = max_idx+1;
+		}
+	});
+
 	gpuErrchk( cudaDeviceSynchronize() );
 	
 	////////////////////////////////////////////////////////////////////////////////
@@ -36,49 +76,6 @@ void run_event_based_simulation(Input input, SimulationData GSD, unsigned long *
 	gpuErrchk( cudaDeviceSynchronize() );
 
 	*vhash_result = verification_scalar;
-}
-
-// In this kernel, we perform a single lookup with each thread. Threads within a warp
-// do not really have any relation to each other, and divergence due to high nuclide count fuel
-// material lookups are costly. This kernel constitutes baseline performance.
-__global__ void xs_lookup_kernel_baseline(Input in, SimulationData GSD )
-{
-	// The lookup ID. Used to set the seed, and to store the verification value
-	const int i = blockIdx.x *blockDim.x + threadIdx.x;
-
-	if( i >= in.lookups )
-		return;
-
-	// Set the initial seed value
-	uint64_t seed = STARTING_SEED;	
-
-	// Forward seed to lookup index (we need 2 samples per lookup)
-	seed = fast_forward_LCG(seed, 2*i);
-
-	// Randomly pick an energy and material for the particle
-	double E = LCG_random_double(&seed);
-	int mat  = pick_mat(&seed);
-
-	double macro_xs[4] = {0};
-
-	calculate_macro_xs( macro_xs, mat, E, in, GSD.num_nucs, GSD.mats, GSD.max_num_nucs, GSD.concs, GSD.n_windows, GSD.pseudo_K0RS, GSD.windows, GSD.poles, GSD.max_num_windows, GSD.max_num_poles );
-
-	// For verification, and to prevent the compiler from optimizing
-	// all work out, we interrogate the returned macro_xs_vector array
-	// to find its maximum value index, then increment the verification
-	// value by that index. In this implementation, we write to a global
-	// verification array that will get reduced after this kernel comples.
-	double max = -DBL_MAX;
-	int max_idx = 0;
-	for(int x = 0; x < 4; x++ )
-	{
-		if( macro_xs[x] > max )
-		{
-			max = macro_xs[x];
-			max_idx = x;
-		}
-	}
-	GSD.verification[i] = max_idx+1;
 }
 
 __device__ void calculate_macro_xs( double * macro_xs, int mat, double E, Input input, int * num_nucs, int * mats, int max_num_nucs, double * concs, int * n_windows, double * pseudo_K0Rs, Window * windows, Pole * poles, int max_num_windows, int max_num_poles ) 

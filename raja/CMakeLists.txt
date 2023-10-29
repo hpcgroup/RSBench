@@ -2,12 +2,13 @@ cmake_minimum_required(VERSION 3.21)
 
 project(RSBench VERSION 1.0 LANGUAGES CXX CUDA)
 
+set(CUDA_ARCHITECTURES 70)
 set(CMAKE_CUDA_ARCHITECTURES 70)
 
 find_package(RAJA REQUIRED)
 find_package(umpire REQUIRED)
 
-set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++17 -gencode arch=compute_70,code=sm_70 -forward-unknown-to-host-compiler -extended-lambda -restrict -keep ${CUDA_EXTRA_FLAGS}")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --expt-relaxed-constexpr -gencode arch=compute_70,code=sm_70 -forward-unknown-to-host-compiler -extended-lambda -restrict -keep ${CUDA_EXTRA_FLAGS}")
 
 set(SOURCE main.cpp io.cpp simulation.cpp init.cpp utils.cpp material.cpp)
 

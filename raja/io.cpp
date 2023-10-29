@@ -246,7 +246,7 @@ void print_CLI_error(void)
 
 void print_input_summary(Input input)
 {
-	printf("Programming Model:           CUDA\n");
+	printf("Programming Model:           RAJA\n");
 	// Print CUDA device name
 	cudaDeviceProp prop;
 	int device;
