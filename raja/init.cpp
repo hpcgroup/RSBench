@@ -105,6 +105,20 @@ SimulationData initialize_simulation(Input input)
 	return SD;
 }
 
+void release_memory(SimulationData SD) {
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("HOST");
+
+	allocator.deallocate(SD.num_nucs);
+	allocator.deallocate(SD.concs);
+	allocator.deallocate(SD.mats);
+	allocator.deallocate(SD.n_poles);
+	allocator.deallocate(SD.n_windows);
+	allocator.deallocate(SD.poles);
+	allocator.deallocate(SD.windows);
+	allocator.deallocate(SD.pseudo_K0RS);
+}
+
 void release_device_memory(SimulationData GSD) {
 	auto& rm = umpire::ResourceManager::getInstance();
 	umpire::Allocator allocator = rm.getAllocator("DEVICE");
