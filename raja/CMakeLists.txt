@@ -9,13 +9,13 @@ set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -std=c++17 -forward-unknown-to-host-co
 
 set(SOURCE main.cpp io.cpp simulation.cpp init.cpp utils.cpp material.cpp)
 
-add_executable(XSBench ${SOURCE})
-target_link_libraries(XSBench RAJA umpire)
+add_executable(RSBench ${SOURCE})
+target_link_libraries(RSBench RAJA umpire)
 
 set_source_files_properties(${SOURCE} PROPERTIES
 									  LANGUAGE CUDA)
 
-set_target_properties(XSBench PROPERTIES
+set_target_properties(RSBench PROPERTIES
 							CMAKE_CXX_STANDARD 17
 							CUDA_SEPERABLE_COMPILATION ON
 							CUDA_STANDARD 17
