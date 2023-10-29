@@ -119,6 +119,7 @@ Pole * generate_poles( Input input, int * n_poles, uint64_t * seed, int * max_nu
 Window * generate_window_params( Input input, int * n_windows, int * n_poles, uint64_t * seed, int * max_num_windows );
 double * generate_pseudo_K0RS( Input input, uint64_t * seed );
 SimulationData move_simulation_data_to_device( Input in, SimulationData SD );
+void release_device_memory(SimulationData GSD);
 
 // material.c
 int * load_num_nucs(Input input);

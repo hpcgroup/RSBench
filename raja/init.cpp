@@ -105,6 +105,21 @@ SimulationData initialize_simulation(Input input)
 	return SD;
 }
 
+void release_device_memory(SimulationData GSD) {
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("DEVICE");
+
+	allocator.deallocate(GSD.num_nucs);
+	allocator.deallocate(GSD.concs);
+	allocator.deallocate(GSD.mats);
+	allocator.deallocate(GSD.n_poles);
+	allocator.deallocate(GSD.n_windows);
+	allocator.deallocate(GSD.poles);
+	allocator.deallocate(GSD.windows);
+	allocator.deallocate(GSD.pseudo_K0RS);
+	allocator.deallocate(GSD.verification);
+}
+
 int * generate_n_poles( Input input, uint64_t * seed )
 {
 	int total_resonances = input.avg_n_poles * input.n_nuclides;

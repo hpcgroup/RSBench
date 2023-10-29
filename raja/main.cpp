@@ -74,6 +74,8 @@ int main(int argc, char * argv[])
 
 	printf("Simulation Complete.\n");
 
+	release_device_memory(GSD);
+
 	// =====================================================================
 	// Print / Save Results and Exit
 	// =====================================================================
