@@ -13,6 +13,10 @@
 #include <thrust/sort.h>
 #include <chrono> 
 
+#include <RAJA/RAJA.hpp>
+#include "umpire/Allocator.hpp"
+#include "umpire/ResourceManager.hpp"
+
 #define PI 3.14159265359
 
 // typedefs

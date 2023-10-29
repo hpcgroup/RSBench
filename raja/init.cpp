@@ -11,57 +11,57 @@ SimulationData move_simulation_data_to_device( Input in, SimulationData SD )
 	// Shallow copy of CPU simulation data to GPU simulation data
 	SimulationData GSD = SD;
 
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("DEVICE");
+
 	// Move data to GPU memory space
 	sz = GSD.length_num_nucs * sizeof(int);
-	gpuErrchk( cudaMalloc((void **) &GSD.num_nucs, sz) );
-	gpuErrchk( cudaMemcpy(GSD.num_nucs, SD.num_nucs, sz, cudaMemcpyHostToDevice) );
+	GSD.num_nucs = static_cast<int*>(allocator.allocate(sz));
+	rm.copy(GSD.num_nucs, SD.num_nucs);
 	total_sz += sz;
 
 	sz = GSD.length_concs * sizeof(double);
-	gpuErrchk( cudaMalloc((void **) &GSD.concs, sz) );
-	gpuErrchk( cudaMemcpy(GSD.concs, SD.concs, sz, cudaMemcpyHostToDevice) );
+	GSD.concs = static_cast<double*>(allocator.allocate(sz));
+	rm.copy(GSD.concs, SD.concs);
 	total_sz += sz;
 
 	sz = GSD.length_mats * sizeof(int);
-	gpuErrchk( cudaMalloc((void **) &GSD.mats, sz) );
-	gpuErrchk( cudaMemcpy(GSD.mats, SD.mats, sz, cudaMemcpyHostToDevice) );
+	GSD.mats = static_cast<int*>(allocator.allocate(sz));
+	rm.copy(GSD.mats, SD.mats);
 	total_sz += sz;
 
 	sz = GSD.length_n_poles * sizeof(int);
-	gpuErrchk( cudaMalloc((void **) &GSD.n_poles, sz) );
-	gpuErrchk( cudaMemcpy(GSD.n_poles, SD.n_poles, sz, cudaMemcpyHostToDevice) );
+	GSD.n_poles = static_cast<int*>(allocator.allocate(sz));
+	rm.copy(GSD.n_poles, SD.n_poles);
 	total_sz += sz;
 
 	sz = GSD.length_n_windows * sizeof(int);
-	gpuErrchk( cudaMalloc((void **) &GSD.n_windows, sz) );
-	gpuErrchk( cudaMemcpy(GSD.n_windows, SD.n_windows, sz, cudaMemcpyHostToDevice) );
+	GSD.n_windows = static_cast<int*>(allocator.allocate(sz));
+	rm.copy(GSD.n_windows, SD.n_windows);
 	total_sz += sz;
 
 	sz = GSD.length_poles * sizeof(Pole);
-	gpuErrchk( cudaMalloc((void **) &GSD.poles, sz) );
-	gpuErrchk( cudaMemcpy(GSD.poles, SD.poles, sz, cudaMemcpyHostToDevice) );
+	GSD.poles = static_cast<Pole*>(allocator.allocate(sz));
+	rm.copy(GSD.poles, SD.poles);
 	total_sz += sz;
 
 	sz = GSD.length_windows * sizeof(Window);
-	gpuErrchk( cudaMalloc((void **) &GSD.windows, sz) );
-	gpuErrchk( cudaMemcpy(GSD.windows, SD.windows, sz, cudaMemcpyHostToDevice) );
+	GSD.windows = static_cast<Window*>(allocator.allocate(sz));
+	rm.copy(GSD.windows, SD.windows);
 	total_sz += sz;
 
 	sz = GSD.length_pseudo_K0RS * sizeof(double);
-	gpuErrchk( cudaMalloc((void **) &GSD.pseudo_K0RS, sz) );
-	gpuErrchk( cudaMemcpy(GSD.pseudo_K0RS, SD.pseudo_K0RS, sz, cudaMemcpyHostToDevice) );
+	GSD.pseudo_K0RS = static_cast<double*>(allocator.allocate(sz));
+	rm.copy(GSD.pseudo_K0RS, SD.pseudo_K0RS);
 	total_sz += sz;
 	
 	// Allocate verification array on device. This structure is not needed on CPU, so we don't
 	// have to copy anything over.
 	sz = in.lookups * sizeof(unsigned long);
-	gpuErrchk( cudaMalloc((void **) &GSD.verification, sz) );
+	GSD.verification = static_cast<unsigned long*>(allocator.allocate(sz));
 	total_sz += sz;
+
 	GSD.length_verification = in.lookups;
-	
-	// Synchronize
-	gpuErrchk( cudaPeekAtLastError() );
-	gpuErrchk( cudaDeviceSynchronize() );
 	
 	printf("GPU Intialization complete. Allocated %.0lf MB of data on GPU.\n", total_sz/1024.0/1024.0 );
 
@@ -69,13 +69,13 @@ SimulationData move_simulation_data_to_device( Input in, SimulationData SD )
 
 }
 
-SimulationData initialize_simulation( Input input )
+SimulationData initialize_simulation(Input input)
 {
 	uint64_t seed = INITIALIZATION_SEED;
 	
 	// Get material data
 	printf("Loading Hoogenboom-Martin material data...\n");
-	SimulationData SD = get_materials( input, &seed ); 
+	SimulationData SD = get_materials(input, &seed); 
 	
 	// Allocate & fill energy grids
 	printf("Generating resonance distributions...\n");
@@ -84,7 +84,7 @@ SimulationData initialize_simulation( Input input )
 
 	// Allocate & fill Window grids
 	printf("Generating window distributions...\n");
-	SD.n_windows = generate_n_windows( input, &seed );
+	SD.n_windows = generate_n_windows(input, &seed);
 	SD.length_n_windows = input.n_nuclides;
 
 	// Prepare full resonance grid
@@ -94,12 +94,12 @@ SimulationData initialize_simulation( Input input )
 
 	// Prepare full Window grid
 	printf("Generating window parameter grid...\n");
-	SD.windows = generate_window_params( input, SD.n_windows, SD.n_poles, &seed, &SD.max_num_windows);
+	SD.windows = generate_window_params(input, SD.n_windows, SD.n_poles, &seed, &SD.max_num_windows);
 	SD.length_windows = input.n_nuclides * SD.max_num_windows;
 
 	// Prepare 0K Resonances
 	printf("Generating 0K l_value data...\n");
-	SD.pseudo_K0RS = generate_pseudo_K0RS( input, &seed );
+	SD.pseudo_K0RS = generate_pseudo_K0RS(input, &seed);
 	SD.length_pseudo_K0RS = input.n_nuclides * input.numL;
 
 	return SD;
@@ -109,7 +109,11 @@ int * generate_n_poles( Input input, uint64_t * seed )
 {
 	int total_resonances = input.avg_n_poles * input.n_nuclides;
 
-	int * R = (int *) malloc( input.n_nuclides * sizeof(int));
+
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("HOST");
+
+	int * R = static_cast<int*>(allocator.allocate(input.n_nuclides * sizeof(int)));
 	
 	// Ensure all nuclides have at least 1 resonance
 	for( int i = 0; i < input.n_nuclides; i++ )
@@ -131,7 +135,10 @@ int * generate_n_windows( Input input, uint64_t * seed )
 {
 	int total_resonances = input.avg_n_windows * input.n_nuclides;
 
-	int * R = (int *) malloc( input.n_nuclides * sizeof(int));
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("HOST");
+
+	int * R = static_cast<int*>(allocator.allocate(input.n_nuclides * sizeof(int)));
 	
 	// Ensure all nuclides have at least 1 resonance
 	for( int i = 0; i < input.n_nuclides; i++ )
@@ -167,7 +174,10 @@ Pole * generate_poles( Input input, int * n_poles, uint64_t * seed, int * max_nu
 	*max_num_poles = max_poles;
 
 	// Allocating 2D matrix as a 1D contiguous vector
-	Pole * R = (Pole *) malloc( input.n_nuclides * max_poles * sizeof(Pole));
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("HOST");
+
+	Pole * R = static_cast<Pole*>(allocator.allocate(input.n_nuclides * max_poles * sizeof(Pole)));
 	
 	// fill with data
 	for( int i = 0; i < input.n_nuclides; i++ )
@@ -192,12 +202,6 @@ Pole * generate_poles( Input input, int * n_poles, uint64_t * seed, int * max_nu
 			R[i * max_poles + j].l_value = LCG_random_int(seed) % input.numL;
 		}
 	
-	/* Debug
-	for( int i = 0; i < input.n_nuclides; i++ )
-		for( int j = 0; j < n_poles[i]; j++ )
-			printf("R[%d][%d]: Eo = %lf lambda_o = %lf Tn = %lf Tg = %lf Tf = %lf\n", i, j, R[i * max_poles + j].Eo, R[i * max_poles + j].lambda_o, R[i * max_poles + j].Tn, R[i * max_poles + j].Tg, R[i * max_poles + j].Tf);
-	*/
-
 	return R;
 }
 
@@ -213,15 +217,18 @@ Window * generate_window_params( Input input, int * n_windows, int * n_poles, ui
 	*max_num_windows = max_windows;
 
 	// Allocating 2D contiguous matrix
-	Window * R = (Window *) malloc( input.n_nuclides * max_windows * sizeof(Window));
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("HOST");
+
+	Window * R = static_cast<Window*>(allocator.allocate(input.n_nuclides * max_windows * sizeof(Window)));
 	
 	// fill with data
-	for( int i = 0; i < input.n_nuclides; i++ )
+	for(int i = 0; i < input.n_nuclides; i++)
 	{
 		int space = n_poles[i] / n_windows[i];
 		int remainder = n_poles[i] - space * n_windows[i];
 		int ctr = 0;
-		for( int j = 0; j < n_windows[i]; j++ )
+		for(int j = 0; j < n_windows[i]; j++)
 		{
 			R[i * max_windows + j].T = LCG_random_double(seed);
 			R[i * max_windows + j].A = LCG_random_double(seed);
@@ -231,7 +238,7 @@ Window * generate_window_params( Input input, int * n_windows, int * n_poles, ui
 
 			ctr += space;
 
-			if ( j < remainder )
+			if (j < remainder)
 			{
 				ctr++;
 				R[i * max_windows + j].end++;
@@ -244,7 +251,10 @@ Window * generate_window_params( Input input, int * n_windows, int * n_poles, ui
 
 double * generate_pseudo_K0RS( Input input, uint64_t * seed )
 {
-	double * R = (double *) malloc( input.n_nuclides * input.numL * sizeof(double));
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("HOST");
+
+	double * R = static_cast<double*>(allocator.allocate(input.n_nuclides * input.numL * sizeof(double)));
 
 	for( int i = 0; i < input.n_nuclides; i++)
 		for( int j = 0; j < input.numL; j++ )
