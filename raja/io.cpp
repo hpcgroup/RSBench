@@ -248,11 +248,11 @@ void print_input_summary(Input input)
 {
 	printf("Programming Model:           RAJA\n");
 	// Print CUDA device name
-	cudaDeviceProp prop;
-	int device;
-	cudaGetDevice(&device);
-	cudaGetDeviceProperties ( &prop, device );
-	printf("CUDA Device:                 %s\n", prop.name); 
+	//cudaDeviceProp prop;
+	//int device;
+	//cudaGetDevice(&device);
+	//cudaGetDeviceProperties ( &prop, device );
+	//printf("GPU Device:                 %s\n", prop.name); 
 
 	// Calculate Estimate of Memory Usage
 	size_t mem = get_mem_estimate(input);

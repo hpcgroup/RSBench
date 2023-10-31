@@ -15,6 +15,9 @@
 #if defined(RAJA_ENABLE_CUDA)
 using policy = RAJA::cuda_exec<256>;
 using reduce_policy = RAJA::cuda_reduce;
+#elif defined(RAJA_ENABLE_HIP)
+using policy = RAJA::hip_exec<256>;
+using reduce_policy = RAJA::hip_reduce;
 #elif defined(RAJA_ENABLE_OPENMP)
 using policy = RAJA::omp_parallel_for_exec;
 using reduce_policy = RAJA::omp_reduce;
