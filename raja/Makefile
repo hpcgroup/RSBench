@@ -63,7 +63,7 @@ endif
 
 ifeq ($(EXECUTION_POLICY),CUDA)
   CXX = nvcc
-  CUDAFLAGS = -x cu --expt-relaxed-constexpr -forward-unknown-to-host-compiler -extended-lambda -restrict -keep
+  CUDAFLAGS = -x cu --expt-relaxed-constexpr -forward-unknown-to-host-compiler -extended-lambda -restrict -keep -arch=sm_$(SM_VERSION) 
   CXXFLAGS += $(CUDAFLAGS)
 endif  
 
@@ -71,7 +71,8 @@ default: $(program)
 
 CXXFLAGS += -I./ -I$(RAJA_INCLUDE_DIR) -I$(Umpire_INCLUDE_DIR) -I$(camp_INCLUDE_DIR)
 LDFLAGS += -lRAJA -lumpire -lcamp
-LDFLAGS += -L$(RAJA_LIB_DIR) -Wl,-rpath=$(RAJA_LIB_DIR) -L$(Umpire_LIB_DIR) -Wl,-rpath=$(Umpire_LIB_DIR) -L$(camp_LIB_DIR)
+LDFLAGS += -L$(RAJA_LIB_DIR) -L$(Umpire_LIB_DIR) -L$(camp_LIB_DIR)
+LDFLAGS += -forward-unknown-to-host-compiler -Wl,-rpath=$(RAJA_LIB_DIR)
 
 CXXFLAGS += -w
 
