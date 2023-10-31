@@ -64,8 +64,12 @@ endif
 ifeq ($(EXECUTION_POLICY),CUDA)
   CXX = nvcc
   CUDAFLAGS = -x cu --expt-relaxed-constexpr -forward-unknown-to-host-compiler -extended-lambda -restrict -keep -arch=sm_$(SM_VERSION) 
-  CXXFLAGS += $(CUDAFLAGS)
+  CXXFLAGS += $(CUDAFLAGS) -DCUDA
 endif  
+
+ifeq ($(EXECUTION_POLICY), OpenMP)
+  CXXFLAGS += -fopenmp -DOpenMP
+endif
 
 default: $(program)
 

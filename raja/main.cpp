@@ -30,7 +30,11 @@ int main(int argc, char * argv[])
 	start = get_time();
 	
 	SimulationData SD = initialize_simulation( input );
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
 	SimulationData GSD = move_simulation_data_to_device( input, SD );
+#else
+	SimulationData GSD = SD;
+#endif
 
 	stop = get_time();
 
@@ -51,15 +55,7 @@ int main(int argc, char * argv[])
 	// Run simulation
 	if( input.simulation_method == EVENT_BASED )
 	{
-		if( input.kernel_id == 0 )
-			run_event_based_simulation(input, GSD, &vhash );
-		else if( input.kernel_id == 1 )
-			run_event_based_simulation_optimization_1(input, GSD, &vhash );
-		else
-		{
-			printf("Error: No kernel ID %d found!\n", input.kernel_id);
-			exit(1);
-		}
+		run_event_based_simulation(input, GSD, &vhash );
 	}
 	else if( input.simulation_method == HISTORY_BASED )
 	{
@@ -75,7 +71,10 @@ int main(int argc, char * argv[])
 	printf("Simulation Complete.\n");
 
 	release_memory(SD);
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
 	release_device_memory(GSD);
+#endif
+
 
 	// =====================================================================
 	// Print / Save Results and Exit

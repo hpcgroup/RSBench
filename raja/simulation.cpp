@@ -14,6 +14,13 @@
 
 #if defined(RAJA_ENABLE_CUDA)
 using policy = RAJA::cuda_exec<256>;
+using reduce_policy = RAJA::cuda_reduce;
+#elif defined(RAJA_ENABLE_OPENMP)
+using policy = RAJA::omp_parallel_for_exec;
+using reduce_policy = RAJA::omp_reduce;
+#else
+using policy = RAJA::seq_exec;
+using reduce_policy = RAJA::seq_reduce;
 #endif
 
 void run_event_based_simulation(Input input, SimulationData GSD, unsigned long * vhash_result )
@@ -26,7 +33,7 @@ void run_event_based_simulation(Input input, SimulationData GSD, unsigned long *
 	int nthreads = 256;
 	int nblocks = ceil( (double) input.lookups / (double) nthreads);
 
-	RAJA::forall<policy>(RAJA::RangeSegment(0, input.lookups), [=] RAJA_DEVICE (int i) {
+	RAJA::forall<policy>(RAJA::RangeSegment(0, input.lookups), [=] RAJA_HOST_DEVICE (int i) {
 		if (i < input.lookups) {
 			uint64_t seed = STARTING_SEED;
 			
@@ -64,21 +71,22 @@ void run_event_based_simulation(Input input, SimulationData GSD, unsigned long *
 		}
 	});
 
-	gpuErrchk( cudaDeviceSynchronize() );
 	
 	////////////////////////////////////////////////////////////////////////////////
 	// Reduce Verification Results
 	////////////////////////////////////////////////////////////////////////////////
 	printf("Reducing verification results...\n");
 
-	unsigned long verification_scalar = thrust::reduce(thrust::device, GSD.verification, GSD.verification + input.lookups, 0);
-	gpuErrchk( cudaPeekAtLastError() );
-	gpuErrchk( cudaDeviceSynchronize() );
+	RAJA::ReduceSum<reduce_policy, unsigned long long> verification_scalar(0);
+
+	RAJA::forall<policy>(RAJA::RangeSegment(0, input.lookups), [=] RAJA_HOST_DEVICE (int i) {
+		verification_scalar += GSD.verification[i];
+	});
 
 	*vhash_result = verification_scalar;
 }
 
-__device__ void calculate_macro_xs( double * macro_xs, int mat, double E, Input input, int * num_nucs, int * mats, int max_num_nucs, double * concs, int * n_windows, double * pseudo_K0Rs, Window * windows, Pole * poles, int max_num_windows, int max_num_poles ) 
+RAJA_HOST_DEVICE void calculate_macro_xs( double * macro_xs, int mat, double E, Input input, int * num_nucs, int * mats, int max_num_nucs, double * concs, int * n_windows, double * pseudo_K0Rs, Window * windows, Pole * poles, int max_num_windows, int max_num_poles ) 
 {
 	// zero out macro vector
 	for( int i = 0; i < 4; i++ )
@@ -114,7 +122,7 @@ __device__ void calculate_macro_xs( double * macro_xs, int mat, double E, Input 
 }
 
 // No Temperature dependence (i.e., 0K evaluation)
-__device__ void calculate_micro_xs( double * micro_xs, int nuc, double E, Input input, int * n_windows, double * pseudo_K0RS, Window * windows, Pole * poles, int max_num_windows, int max_num_poles)
+RAJA_HOST_DEVICE void calculate_micro_xs( double * micro_xs, int nuc, double E, Input input, int * n_windows, double * pseudo_K0RS, Window * windows, Pole * poles, int max_num_windows, int max_num_poles)
 {
 	// MicroScopic XS's to Calculate
 	double sigT;
@@ -165,7 +173,7 @@ __device__ void calculate_micro_xs( double * micro_xs, int nuc, double E, Input 
 // Temperature Dependent Variation of Kernel
 // (This involves using the Complex Faddeeva function to
 // Doppler broaden the poles within the window)
-__device__ void calculate_micro_xs_doppler( double * micro_xs, int nuc, double E, Input input, int * n_windows, double * pseudo_K0RS, Window * windows, Pole * poles, int max_num_windows, int max_num_poles )
+RAJA_HOST_DEVICE void calculate_micro_xs_doppler( double * micro_xs, int nuc, double E, Input input, int * n_windows, double * pseudo_K0RS, Window * windows, Pole * poles, int max_num_windows, int max_num_poles )
 {
 	// MicroScopic XS's to Calculate
 	double sigT;
@@ -219,7 +227,7 @@ __device__ void calculate_micro_xs_doppler( double * micro_xs, int nuc, double E
 }
 
 // picks a material based on a probabilistic distribution
-__device__ int pick_mat( uint64_t * seed )
+RAJA_HOST_DEVICE int pick_mat( uint64_t * seed )
 {
 	// I have a nice spreadsheet supporting these numbers. They are
 	// the fractions (by volume) of material in the core. Not a 
@@ -255,7 +263,7 @@ __device__ int pick_mat( uint64_t * seed )
 	return 0;
 }
 
-__device__ void calculate_sig_T( int nuc, double E, Input input, double * pseudo_K0RS, RSComplex * sigTfactors )
+RAJA_HOST_DEVICE void calculate_sig_T( int nuc, double E, Input input, double * pseudo_K0RS, RSComplex * sigTfactors )
 {
 	double phi;
 
@@ -280,7 +288,7 @@ __device__ void calculate_sig_T( int nuc, double E, Input input, double * pseudo
 // This function uses a combination of the Abrarov Approximation
 // and the QUICK_W three term asymptotic expansion.
 // Only expected to use Abrarov ~0.5% of the time.
-__device__ RSComplex fast_nuclear_W( RSComplex Z )
+RAJA_HOST_DEVICE RSComplex fast_nuclear_W( RSComplex Z )
 {
 	// Abrarov 
 	if( c_abs(Z) < 6.0 )
@@ -363,7 +371,7 @@ __device__ RSComplex fast_nuclear_W( RSComplex Z )
 	}
 }
 
-__host__ __device__ double LCG_random_double(uint64_t * seed)
+RAJA_HOST_DEVICE double LCG_random_double(uint64_t * seed)
 {
 	const uint64_t m = 9223372036854775808ULL; // 2^63
 	const uint64_t a = 2806196910506780709ULL;
@@ -372,7 +380,7 @@ __host__ __device__ double LCG_random_double(uint64_t * seed)
 	return (double) (*seed) / (double) m;
 }	
 
-__host__ __device__ uint64_t LCG_random_int(uint64_t * seed)
+RAJA_HOST_DEVICE uint64_t LCG_random_int(uint64_t * seed)
 {
 	const uint64_t m = 9223372036854775808ULL; // 2^63
 	const uint64_t a = 2806196910506780709ULL;
@@ -381,7 +389,7 @@ __host__ __device__ uint64_t LCG_random_int(uint64_t * seed)
 	return *seed;
 }	
 
-__device__ uint64_t fast_forward_LCG(uint64_t seed, uint64_t n)
+RAJA_HOST_DEVICE uint64_t fast_forward_LCG(uint64_t seed, uint64_t n)
 {
 	const uint64_t m = 9223372036854775808ULL; // 2^63
 	uint64_t a = 2806196910506780709ULL;
@@ -410,7 +418,7 @@ __device__ uint64_t fast_forward_LCG(uint64_t seed, uint64_t n)
 
 // Complex arithmetic functions
 
-__device__ RSComplex c_add( RSComplex A, RSComplex B)
+RAJA_HOST_DEVICE RSComplex c_add( RSComplex A, RSComplex B)
 {
 	RSComplex C;
 	C.r = A.r + B.r;
@@ -418,7 +426,7 @@ __device__ RSComplex c_add( RSComplex A, RSComplex B)
 	return C;
 }
 
-__device__ RSComplex c_sub( RSComplex A, RSComplex B)
+RAJA_HOST_DEVICE RSComplex c_sub( RSComplex A, RSComplex B)
 {
 	RSComplex C;
 	C.r = A.r - B.r;
@@ -426,7 +434,7 @@ __device__ RSComplex c_sub( RSComplex A, RSComplex B)
 	return C;
 }
 
-__host__ __device__ RSComplex c_mul( RSComplex A, RSComplex B)
+RAJA_HOST_DEVICE RSComplex c_mul( RSComplex A, RSComplex B)
 {
 	double a = A.r;
 	double b = A.i;
@@ -438,7 +446,7 @@ __host__ __device__ RSComplex c_mul( RSComplex A, RSComplex B)
 	return C;
 }
 
-__device__ RSComplex c_div( RSComplex A, RSComplex B)
+RAJA_HOST_DEVICE RSComplex c_div( RSComplex A, RSComplex B)
 {
 	double a = A.r;
 	double b = A.i;
@@ -451,7 +459,7 @@ __device__ RSComplex c_div( RSComplex A, RSComplex B)
 	return C;
 }
 
-__device__ double c_abs( RSComplex A)
+RAJA_HOST_DEVICE double c_abs( RSComplex A)
 {
 	return sqrt(A.r*A.r + A.i * A.i);
 }
@@ -463,7 +471,7 @@ __device__ double c_abs( RSComplex A)
 // We use our own to avoid small differences in compiler specific
 // exp() intrinsic implementations that make it difficult to verify
 // if the code is working correctly or not.
-__device__ double fast_exp(double x)
+RAJA_HOST_DEVICE double fast_exp(double x)
 {
   x = 1.0 + x * 0.000244140625;
   x *= x; x *= x; x *= x; x *= x;
@@ -475,7 +483,7 @@ __device__ double fast_exp(double x)
 // Implementation based on:
 // z = x + iy
 // cexp(z) = e^x * (cos(y) + i * sin(y))
-__device__ RSComplex fast_cexp( RSComplex z )
+RAJA_HOST_DEVICE RSComplex fast_cexp( RSComplex z )
 {
 	double x = z.r;
 	double y = z.i;
@@ -491,172 +499,3 @@ __device__ RSComplex fast_cexp( RSComplex z )
 	RSComplex result = c_mul(t5, (t4));
 	return result;
 }	
-
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-// OPTIMIZED VARIANT FUNCTIONS
-////////////////////////////////////////////////////////////////////////////////////
-// This section contains a number of optimized variants of some of the above
-// functions, which each deploy a different combination of optimizations strategies
-// specific to GPU. By default, RSBench will not run any of these variants. They
-// must be specifically selected using the "-k <optimized variant ID>" command
-// line argument.
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////
-
-////////////////////////////////////////////////////////////////////////////////////
-// Optimization 6 -- Kernel Splitting + All Material Lookups + Full Sort
-//                   + Energy Sort
-////////////////////////////////////////////////////////////////////////////////////
-// This optimization builds on optimization 4, adding in a second sort by energy.
-// It is extremely fast, as now most of the threads within a warp will be hitting
-// the same indices in the lookup grids. This greatly reduces thread divergence and
-// greatly improves cache efficiency and re-use.
-//
-// However, it is unlikely that this exact optimization would be possible in a real
-// application like OpenMC. One major difference is that particle objects are quite
-// large, often having 50+ variable fields, such that sorting them in memory becomes
-// rather expensive. Instead, the best possible option would probably be to create
-// intermediate indexing (per Hamilton et. al 2019), and run the kernels indirectly.
-////////////////////////////////////////////////////////////////////////////////////
-
-__global__ void sampling_kernel(Input in, SimulationData GSD )
-{
-	// The lookup ID.
-	const int i = blockIdx.x *blockDim.x + threadIdx.x;
-
-	if( i >= in.lookups )
-		return;
-
-	// Set the initial seed value
-	uint64_t seed = STARTING_SEED;	
-
-	// Forward seed to lookup index (we need 2 samples per lookup)
-	seed = fast_forward_LCG(seed, 2*i);
-
-	// Randomly pick an energy and material for the particle
-	double p_energy = LCG_random_double(&seed);
-	int mat         = pick_mat(&seed); 
-
-	// Store sample data in state array
-	GSD.p_energy_samples[i] = p_energy;
-	GSD.mat_samples[i] = mat;
-}
-
-__global__ void xs_lookup_kernel_optimization_1(Input in, SimulationData GSD, int m, int n_lookups, int offset )
-{
-	// The lookup ID. Used to set the seed, and to store the verification value
-	int i = blockIdx.x *blockDim.x + threadIdx.x;
-
-	if( i >= n_lookups )
-		return;
-
-	i += offset;
-
-	// Check that our material type matches the kernel material
-	int mat = GSD.mat_samples[i];
-	if( mat != m )
-		return;
-	
-	double macro_xs[4] = {0};
-
-	calculate_macro_xs( macro_xs, mat, GSD.p_energy_samples[i], in, GSD.num_nucs, GSD.mats, GSD.max_num_nucs, GSD.concs, GSD.n_windows, GSD.pseudo_K0RS, GSD.windows, GSD.poles, GSD.max_num_windows, GSD.max_num_poles );
-
-	// For verification, and to prevent the compiler from optimizing
-	// all work out, we interrogate the returned macro_xs_vector array
-	// to find its maximum value index, then increment the verification
-	// value by that index. In this implementation, we write to a global
-	// verification array that will get reduced after this kernel comples.
-	double max = -DBL_MAX;
-	int max_idx = 0;
-	for(int x = 0; x < 4; x++ )
-	{
-		if( macro_xs[x] > max )
-		{
-			max = macro_xs[x];
-			max_idx = x;
-		}
-	}
-	GSD.verification[i] = max_idx+1;
-}
-
-void run_event_based_simulation_optimization_1(Input in, SimulationData GSD, unsigned long * vhash_result)
-{
-	const char * optimization_name = "Optimization 1 - Material & Energy Sorts + Material-specific Kernels";
-	
-	printf("Simulation Kernel:\"%s\"\n", optimization_name);
-	
-	////////////////////////////////////////////////////////////////////////////////
-	// Allocate Additional Data Structures Needed by Optimized Kernel
-	////////////////////////////////////////////////////////////////////////////////
-	printf("Allocating additional device data required by kernel...\n");
-	size_t sz;
-	size_t total_sz = 0;
-
-	sz = in.lookups * sizeof(double);
-	gpuErrchk( cudaMalloc((void **) &GSD.p_energy_samples, sz) );
-	total_sz += sz;
-	GSD.length_p_energy_samples = in.lookups;
-
-	sz = in.lookups * sizeof(int);
-	gpuErrchk( cudaMalloc((void **) &GSD.mat_samples, sz) );
-	total_sz += sz;
-	GSD.length_mat_samples = in.lookups;
-	
-	printf("Allocated an additional %.0lf MB of data on GPU.\n", total_sz/1024.0/1024.0);
-
-	////////////////////////////////////////////////////////////////////////////////
-	// Configure & Launch Simulation Kernel
-	////////////////////////////////////////////////////////////////////////////////
-	printf("Beginning optimized simulation...\n");
-
-	int nthreads = 32;
-	int nblocks = ceil( (double) in.lookups / 32.0);
-	
-	sampling_kernel<<<nblocks, nthreads>>>( in, GSD );
-	gpuErrchk( cudaPeekAtLastError() );
-	gpuErrchk( cudaDeviceSynchronize() );
-
-	// Count the number of fuel material lookups that need to be performed (fuel id = 0)
-	int n_lookups_per_material[12];
-	for( int m = 0; m < 12; m++ )
-		n_lookups_per_material[m] = thrust::count(thrust::device, GSD.mat_samples, GSD.mat_samples + in.lookups, m);
-
-	// Sort by material first
-	thrust::sort_by_key(thrust::device, GSD.mat_samples, GSD.mat_samples + in.lookups, GSD.p_energy_samples);
-
-	// Now, sort each material by energy
-	int offset = 0;
-	for( int m = 0; m < 12; m++ )
-	{
-		thrust::sort_by_key(thrust::device, GSD.p_energy_samples + offset, GSD.p_energy_samples + offset + n_lookups_per_material[m], GSD.mat_samples + offset);
-		offset += n_lookups_per_material[m];
-	}
-	
-	// Launch all material kernels individually
-	offset = 0;
-	for( int m = 0; m < 12; m++ )
-	{
-		nthreads = 32;
-		nblocks = ceil((double) n_lookups_per_material[m] / (double) nthreads);
-		xs_lookup_kernel_optimization_1<<<nblocks, nthreads>>>( in, GSD, m, n_lookups_per_material[m], offset );
-		offset += n_lookups_per_material[m];
-	}
-	gpuErrchk( cudaPeekAtLastError() );
-	gpuErrchk( cudaDeviceSynchronize() );
-	
-	////////////////////////////////////////////////////////////////////////////////
-	// Reduce Verification Results
-	////////////////////////////////////////////////////////////////////////////////
-	printf("Reducing verification results...\n");
-
-	unsigned long verification_scalar = thrust::reduce(thrust::device, GSD.verification, GSD.verification + in.lookups, 0);
-	gpuErrchk( cudaPeekAtLastError() );
-	gpuErrchk( cudaDeviceSynchronize() );
-
-	*vhash_result = verification_scalar;
-}
