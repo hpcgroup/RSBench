@@ -5,7 +5,7 @@
 RAJA_PATH ?= 
 Umpire_PATH ?=
 camp_PATH ?=
-EXECUTION_POLICY ?= 
+TARGET ?= 
 SM_VERSION ?=
 OFFLOAD_ARCH ?=
 
@@ -61,19 +61,19 @@ ifeq ($(OPTIMIZE),yes)
   CXXFLAGS += -O3
 endif
 
-ifeq ($(EXECUTION_POLICY),CUDA)
+ifeq ($(TARGET),CUDA)
   CXX = nvcc
   CUDAFLAGS = -x cu --expt-relaxed-constexpr -forward-unknown-to-host-compiler -extended-lambda -restrict -keep -arch=sm_$(SM_VERSION) 
   CXXFLAGS += $(CUDAFLAGS)
 endif  
 
-ifeq ($(EXECUTION_POLICY),HIP)
+ifeq ($(TARGET),HIP)
   CXX = hipcc
   HIPFLAGS = --offload-arch=$(OFFLOAD_ARCH)
   CXXFLAGS += $(HIPFLAGS)
 endif
 
-ifeq ($(EXECUTION_POLICY), OpenMP)
+ifeq ($(TARGET), OpenMP)
   CXXFLAGS += -fopenmp
 endif
 
