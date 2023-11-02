@@ -72,6 +72,9 @@ SimulationData move_simulation_data_to_device( Input in, SimulationData SD )
 SimulationData initialize_simulation(Input input)
 {
 	uint64_t seed = INITIALIZATION_SEED;
+
+	auto& rm = umpire::ResourceManager::getInstance();
+	umpire::Allocator allocator = rm.getAllocator("HOST");
 	
 	// Get material data
 	printf("Loading Hoogenboom-Martin material data...\n");
@@ -101,6 +104,9 @@ SimulationData initialize_simulation(Input input)
 	printf("Generating 0K l_value data...\n");
 	SD.pseudo_K0RS = generate_pseudo_K0RS(input, &seed);
 	SD.length_pseudo_K0RS = input.n_nuclides * input.numL;
+
+	size_t sz = input.lookups * sizeof(unsigned long);
+	SD.verification = static_cast<unsigned long*>(allocator.allocate(sz));
 
 	return SD;
 }

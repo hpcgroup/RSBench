@@ -29,13 +29,7 @@ int main(int argc, char * argv[])
 	
 	start = get_time();
 	
-	SimulationData SD = initialize_simulation( input );
-#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
-	SimulationData GSD = move_simulation_data_to_device( input, SD );
-#else
-	SimulationData GSD = SD;
-#endif
-
+	SimulationData SD = initialize_simulation(input);
 	stop = get_time();
 
 	printf("Initialization Complete. (%.2lf seconds)\n", stop-start);
@@ -48,22 +42,15 @@ int main(int argc, char * argv[])
 	border_print();
 
 	unsigned long vhash = 0;
+	double elapsed_time = 0;
 
 	// Run Simulation
-	start = get_time();
-
-	// Run simulation
-	if( input.simulation_method == EVENT_BASED )
-	{
-		run_event_based_simulation(input, GSD, &vhash );
-	}
-	else if( input.simulation_method == HISTORY_BASED )
-	{
-		printf("History-based simulation not implemented in OpenMP offload code. Instead,\nuse the event-based method with \"-m event\" argument.\n");
+	if( input.simulation_method == EVENT_BASED) {
+		run_event_based_simulation(input, SD, &vhash, &elapsed_time);
+	} else if( input.simulation_method == HISTORY_BASED) {
+		printf("History-based simulation not implemented in RAJA code. Instead,\nuse the event-based method with \"-m event\" argument.\n");
 		exit(1);
 	}
-
-	stop = get_time();
 
 	// Final hash step
 	vhash = vhash % 999983;
@@ -71,10 +58,6 @@ int main(int argc, char * argv[])
 	printf("Simulation Complete.\n");
 
 	release_memory(SD);
-#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
-	release_device_memory(GSD);
-#endif
-
 
 	// =====================================================================
 	// Print / Save Results and Exit
@@ -83,7 +66,7 @@ int main(int argc, char * argv[])
 	center_print("RESULTS", 79);
 	border_print();
 
-	int is_invalid = validate_and_print_results(input, stop-start, vhash);
+	int is_invalid = validate_and_print_results(input, elapsed_time, vhash);
 
 	border_print();
 

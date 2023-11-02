@@ -14,24 +14,33 @@
 
 #if defined(RAJA_ENABLE_CUDA)
 using policy = RAJA::cuda_exec<256>;
-using reduce_policy = RAJA::cuda_reduce;
 #elif defined(RAJA_ENABLE_HIP)
 using policy = RAJA::hip_exec<256>;
-using reduce_policy = RAJA::hip_reduce;
 #elif defined(RAJA_ENABLE_OPENMP)
 using policy = RAJA::omp_parallel_for_exec;
-using reduce_policy = RAJA::omp_reduce;
 #else
 using policy = RAJA::seq_exec;
-using reduce_policy = RAJA::seq_reduce;
 #endif
 
-void run_event_based_simulation(Input input, SimulationData GSD, unsigned long * vhash_result )
-{
+void run_event_based_simulation(Input input, SimulationData SD, unsigned long *vhash_result, double * elapsed_time) {
+	double start, stop;
+	auto& rm = umpire::ResourceManager::getInstance();
+
+	start = get_time();
+	////////////////////////////////////////////////////////////////////////////////
+	// Move Data to Device
+	////////////////////////////////////////////////////////////////////////////////
+	SimulationData GSD = move_simulation_data_to_device(input, SD);
+	stop = get_time();
+
+	printf("Initialization Complete. (%.2lf seconds)\n", stop - start);
+	
 	////////////////////////////////////////////////////////////////////////////////
 	// Configure & Launch Simulation Kernel
 	////////////////////////////////////////////////////////////////////////////////
 	printf("Running baseline event-based simulation on device...\n");
+
+	start = get_time();
 
 	int nthreads = 256;
 	int nblocks = ceil( (double) input.lookups / (double) nthreads);
@@ -79,14 +88,19 @@ void run_event_based_simulation(Input input, SimulationData GSD, unsigned long *
 	// Reduce Verification Results
 	////////////////////////////////////////////////////////////////////////////////
 	printf("Reducing verification results...\n");
+	rm.copy(SD.verification, GSD.verification);
 
-	RAJA::ReduceSum<reduce_policy, unsigned long long> verification_scalar(0);
-
-	RAJA::forall<policy>(RAJA::RangeSegment(0, input.lookups), [=] RAJA_HOST_DEVICE (int i) {
-		verification_scalar += GSD.verification[i];
-	});
+	unsigned long long verification_scalar = 0;
+	for(int i = 0; i < input.lookups; i++ )
+		verification_scalar += SD.verification[i];
 
 	*vhash_result = verification_scalar;
+
+	stop = get_time();
+
+	*elapsed_time = stop - start;
+
+	release_device_memory(GSD);
 }
 
 RAJA_HOST_DEVICE void calculate_macro_xs( double * macro_xs, int mat, double E, Input input, int * num_nucs, int * mats, int max_num_nucs, double * concs, int * n_windows, double * pseudo_K0Rs, Window * windows, Pole * poles, int max_num_windows, int max_num_poles ) 
