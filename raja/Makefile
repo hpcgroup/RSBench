@@ -5,9 +5,9 @@
 RAJA_PATH ?= 
 Umpire_PATH ?=
 camp_PATH ?=
-TARGET ?= 
-SM_VERSION ?=
-OFFLOAD_ARCH ?=
+TARGET ?= # Choose Target Backend (CUDA, HIP, OpenMP) Default is Sequential
+SM_VERSION ?= # For CUDA Target
+OFFLOAD_ARCH ?= # For HIP Target
 
 OPTIMIZE ?= yes
 DEBUG ?= no
