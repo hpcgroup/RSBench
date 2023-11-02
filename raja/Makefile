@@ -93,7 +93,7 @@ $(program): $(obj) rsbench.h Makefile
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -rf rsbench $(obj)
+	rm -rf $(program) $(obj)
 
 edit:
 	vim -p $(source) rsbench.h
