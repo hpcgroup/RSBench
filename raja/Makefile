@@ -72,6 +72,7 @@ ifeq ($(TARGET),HIP)
   CXX = hipcc
   HIPFLAGS = --offload-arch=$(OFFLOAD_ARCH)
   CXXFLAGS += $(HIPFLAGS)
+  LDFLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
 endif
 
 ifeq ($(TARGET), OpenMP)
