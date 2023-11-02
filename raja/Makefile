@@ -65,6 +65,7 @@ ifeq ($(TARGET),CUDA)
   CXX = nvcc
   CUDAFLAGS = -x cu --expt-relaxed-constexpr -forward-unknown-to-host-compiler -extended-lambda -restrict -keep -arch=sm_$(SM_VERSION) 
   CXXFLAGS += $(CUDAFLAGS)
+  LDFLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
 endif  
 
 ifeq ($(TARGET),HIP)
@@ -75,6 +76,8 @@ endif
 
 ifeq ($(TARGET), OpenMP)
   CXXFLAGS += -fopenmp
+  LDFLAGS += -fopenmp
+  LDFLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
 endif
 
 default: $(program)
@@ -82,7 +85,6 @@ default: $(program)
 CXXFLAGS += -I./ -I$(RAJA_INCLUDE_DIR) -I$(Umpire_INCLUDE_DIR) -I$(camp_INCLUDE_DIR)
 LDFLAGS += -lRAJA -lumpire -lcamp
 LDFLAGS += -L$(RAJA_LIB_DIR) -L$(Umpire_LIB_DIR) -L$(camp_LIB_DIR)
-LDFLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
 
 CXXFLAGS += -w
 

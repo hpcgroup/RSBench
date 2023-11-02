@@ -25,16 +25,18 @@ using policy = RAJA::seq_exec;
 void run_event_based_simulation(Input input, SimulationData SD, unsigned long *vhash_result, double * elapsed_time) {
 	double start, stop;
 	auto& rm = umpire::ResourceManager::getInstance();
-
 	start = get_time();
 	////////////////////////////////////////////////////////////////////////////////
 	// Move Data to Device
 	////////////////////////////////////////////////////////////////////////////////
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
 	SimulationData GSD = move_simulation_data_to_device(input, SD);
 	stop = get_time();
-
 	printf("Initialization Complete. (%.2lf seconds)\n", stop - start);
-	
+#else
+	SimulationData GSD = SD;
+#endif
+
 	////////////////////////////////////////////////////////////////////////////////
 	// Configure & Launch Simulation Kernel
 	////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +102,9 @@ void run_event_based_simulation(Input input, SimulationData SD, unsigned long *v
 
 	*elapsed_time = stop - start;
 
+#if defined(RAJA_ENABLE_CUDA) || defined(RAJA_ENABLE_HIP)
 	release_device_memory(GSD);
+#endif
 }
 
 RAJA_HOST_DEVICE void calculate_macro_xs( double * macro_xs, int mat, double E, Input input, int * num_nucs, int * mats, int max_num_nucs, double * concs, int * n_windows, double * pseudo_K0Rs, Window * windows, Pole * poles, int max_num_windows, int max_num_poles ) 
