@@ -95,7 +95,7 @@ $(program): $(obj) rsbench.h Makefile
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -rf $(program) $(obj)
+	rm -rf $(program) $(obj) *.cpp1* *.cpp4* *.ptx *.cubin *.cudafe1* *.fatbin* *.module_id
 
 edit:
 	vim -p $(source) rsbench.h
