@@ -68,7 +68,12 @@ Input read_CLI( int argc, char * argv[] )
 	// defaults to the history based simulation method
 	input.simulation_method = HISTORY_BASED;
 	// defaults to max threads on the system	
+#if defined(RAJA_ENABLE_OPENMP)
+	input.nthreads = omp_get_num_procs();
+#else
 	input.nthreads = 1;
+#endif
+
 	// defaults to 355 (corresponding to H-M Large benchmark)
 	input.n_nuclides = 355;
 	// defaults to 300,000
@@ -247,12 +252,22 @@ void print_CLI_error(void)
 void print_input_summary(Input input)
 {
 	printf("Programming Model:           RAJA\n");
-	// Print CUDA device name
-	//cudaDeviceProp prop;
-	//int device;
-	//cudaGetDevice(&device);
-	//cudaGetDeviceProperties ( &prop, device );
-	//printf("GPU Device:                 %s\n", prop.name); 
+
+#if defined(RAJA_ENABLE_CUDA)
+	cudaDeviceProp prop;
+	int device;
+	cudaGetDevice(&device);
+	cudaGetDeviceProperties ( &prop, device );
+	printf("GPU Device:                 %s\n", prop.name); 
+#elif defined(RAJA_ENABLE_HIP)
+	hipDeviceProp_t prop;
+	int device;
+	hipGetDevice(&device);
+	hipGetDeviceProperties ( &prop, device );
+	printf("GPU Device:                  %s\n", prop.name);
+#endif
+
+
 
 	// Calculate Estimate of Memory Usage
 	size_t mem = get_mem_estimate(input);
