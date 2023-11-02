@@ -1,5 +1,4 @@
 #include "rsbench.h"
-using namespace cl::sycl;
 
 ////////////////////////////////////////////////////////////////////////////////////
 // BASELINE FUNCTIONS
@@ -13,110 +12,98 @@ using namespace cl::sycl;
 // line argument.
 ////////////////////////////////////////////////////////////////////////////////////
 
-void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vhash_result, double * kernel_init_time )
-{
+void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vhash_result, double * kernel_init_time ) {
 	
 	// Let's create an extra verification array to reduce manually later on
-	printf("Allocating an additional %.1lf MB of memory for verification arrays...\n", in.lookups * sizeof(int) /1024.0/1024.0);
-	int * verification_host = (int *) malloc(in.lookups * sizeof(int));
+	//printf("Allocating an additional %.1lf MB of memory for verification arrays...\n", in.lookups * sizeof(int) /1024.0/1024.0);
+	//int * verification_host = (int *) malloc(in.lookups * sizeof(int));
 	
 	// Timers
 	double start = get_time();
 	double stop;
 
-	// Scope here is important, as when we exit this blocl we will automatically sync with device
-	// to ensure all work is done and that we can read from verification_host array.
-	{
-		// create a queue using the default device for the platform (cpu, gpu)
-
-		queue sycl_q{default_selector()};
-		//queue sycl_q{gpu_selector()};
-		//queue sycl_q{cpu_selector()};
-		printf("Running on: %s\n", sycl_q.get_device().get_info<cl::sycl::info::device::name>().c_str());
-		printf("Initializing device buffers and JIT compiling kernel...\n");
+	sycl::queue sycl_q{sycl::default_selector_v};
+	printf("Running on: %s\n", sycl_q.get_device().get_info<cl::sycl::info::device::name>().c_str());
+	printf("Initializing device buffers and JIT compiling kernel...\n");
 	
-		////////////////////////////////////////////////////////////////////////////////
-		// Create Device Buffers
-		////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////
+	// Create Device Buffers
+	////////////////////////////////////////////////////////////////////////////////
 
-		// assign SYCL buffer to existing memory
-		buffer<int, 1> num_nucs_d(SD.num_nucs,SD.length_num_nucs);
-		buffer<double, 1> concs_d(SD.concs, SD.length_concs);
-		buffer<int, 1> mats_d(SD.mats, SD.length_mats);
-		buffer<int, 1> n_windows_d(SD.n_windows, SD.length_n_windows);
-		buffer<Pole, 1> poles_d(SD.poles, SD.length_poles);
-		buffer<Window, 1> windows_d(SD.windows, SD.length_windows);
-		buffer<double, 1> pseudo_K0RS_d(SD.pseudo_K0RS, SD.length_pseudo_K0RS);
-		buffer<int, 1> verification_d(verification_host, in.lookups);
+	// assign SYCL buffer to existing memory
+	sycl::buffer<int> num_nucs_d {SD.num_nucs,SD.length_num_nucs};
+	sycl::buffer<double> concs_d {SD.concs, SD.length_concs};
+	sycl::buffer<int> mats_d {SD.mats, SD.length_mats};
+	sycl::buffer<int> n_windows_d {SD.n_windows, SD.length_n_windows};
+	sycl::buffer<Pole> poles_d {SD.poles, SD.length_poles};
+	sycl::buffer<Window> windows_d {SD.windows, SD.length_windows};
+	sycl::buffer<double> pseudo_K0RS_d {SD.pseudo_K0RS, SD.length_pseudo_K0RS};
+	sycl::buffer<int> verification_d {in.lookups};
+
+	////////////////////////////////////////////////////////////////////////////////
+	// Define Device Kernel
+	////////////////////////////////////////////////////////////////////////////////
+
+	// queue a kernel to be run, as a lambda
+	sycl_q.submit([&](sycl::handler &cgh) {
+		////////////////////////////////////////////////////////////////////////////////
+		// Create Device Accessors for Device Buffers
+		////////////////////////////////////////////////////////////////////////////////
+		sycl::accessor num_nucs {num_nucs_d, cgh, sycl::read_only};
+		sycl::accessor concs {concs_d, cgh, sycl::read_only};
+		sycl::accessor mats {mats_d, cgh, sycl::read_only};
+		sycl::accessor n_windows {n_windows_d, cgh, sycl::read_only};
+		sycl::accessor poles {poles_d, cgh, sycl::read_only};
+		sycl::accessor windows {windows_d, cgh, sycl::read_only};
+		sycl::accessor pseudo_K0RS {pseudo_K0RS_d, cgh, sycl::read_only};
+		sycl::accessor verification {verification_d, cgh, sycl::write_only, sycl::no_init};
 		
 		////////////////////////////////////////////////////////////////////////////////
-		// Define Device Kernel
+		// XS Lookup Simulation Loop
 		////////////////////////////////////////////////////////////////////////////////
 
-		// queue a kernel to be run, as a lambda
-		sycl_q.submit([&](handler &cgh)
-				{
-				////////////////////////////////////////////////////////////////////////////////
-				// Create Device Accessors for Device Buffers
-				////////////////////////////////////////////////////////////////////////////////
-				auto num_nucs = num_nucs_d.get_access<access::mode::read>(cgh);
-				auto concs = concs_d.get_access<access::mode::read>(cgh);
-				auto mats = mats_d.get_access<access::mode::read>(cgh);
-				auto verification = verification_d.get_access<access::mode::write>(cgh);
-				auto n_windows = n_windows_d.get_access<access::mode::read>(cgh);
-				auto poles = poles_d.get_access<access::mode::read>(cgh);
-				auto windows = windows_d.get_access<access::mode::read>(cgh);
-				auto pseudo_K0RS = pseudo_K0RS_d.get_access<access::mode::read>(cgh);
+		cgh.parallel_for<sycl::kernel>(sycl::range<1>(in.lookups), [=](sycl::id<1> idx) {
+			// get the index to operate on, first dimemsion
+			size_t i = idx[0];
 
-				////////////////////////////////////////////////////////////////////////////////
-				// XS Lookup Simulation Loop
-				////////////////////////////////////////////////////////////////////////////////
-				cgh.parallel_for<kernel>(range<1>(in.lookups), [=](id<1> idx)
-					{
-					// get the index to operate on, first dimemsion
-					size_t i = idx[0];
+			// Set the initial seed value
+			uint64_t seed = STARTING_SEED;	
 
-					// Set the initial seed value
-					uint64_t seed = STARTING_SEED;	
+			// Forward seed to lookup index (we need 2 samples per lookup)
+			seed = fast_forward_LCG(seed, 2*i);
 
-					// Forward seed to lookup index (we need 2 samples per lookup)
-					seed = fast_forward_LCG(seed, 2*i);
+			// Randomly pick an energy and material for the particle
+			double p_energy = LCG_random_double(&seed);
+			int mat = pick_mat(&seed); 
 
-					// Randomly pick an energy and material for the particle
-					double p_energy = LCG_random_double(&seed);
-					int mat         = pick_mat(&seed); 
+			double macro_xs_vector[4] = {0};
 
-					// debugging
-					//printf("E = %lf mat = %d\n", p_energy, mat);
+			// Perform macroscopic Cross Section Lookup
+			calculate_macro_xs( macro_xs_vector, mat, p_energy, in, num_nucs, mats, SD.max_num_nucs, concs, n_windows, pseudo_K0RS, windows, poles, SD.max_num_windows, SD.max_num_poles );
 
-					double macro_xs_vector[4] = {0};
+			// For verification, and to prevent the compiler from optimizing
+			// all work out, we interrogate the returned macro_xs_vector array
+			// to find its maximum value index, then increment the verification
+			// value by that index. In this implementation, we store to a global
+			// array that will get tranferred back and reduced on the host.
+			double max = -DBL_MAX;
+			int max_idx = 0;
+			for(int j = 0; j < 4; j++ ) {
+				if(macro_xs_vector[j] > max) {
+					max = macro_xs_vector[j];
+					max_idx = j;
+				}
+			}
+			verification[i] = max_idx+1;
+		});
+	});
 
-					// Perform macroscopic Cross Section Lookup
-					calculate_macro_xs( macro_xs_vector, mat, p_energy, in, num_nucs, mats, SD.max_num_nucs, concs, n_windows, pseudo_K0RS, windows, poles, SD.max_num_windows, SD.max_num_poles );
+	sycl::host_accessor verification_host {verification_d, sycl::read_only};
 
-					// For verification, and to prevent the compiler from optimizing
-					// all work out, we interrogate the returned macro_xs_vector array
-					// to find its maximum value index, then increment the verification
-					// value by that index. In this implementation, we store to a global
-					// array that will get tranferred back and reduced on the host.
-					double max = -DBL_MAX;
-					int max_idx = 0;
-					for(int j = 0; j < 4; j++ )
-					{
-						if( macro_xs_vector[j] > max )
-						{
-							max = macro_xs_vector[j];
-							max_idx = j;
-						}
-					}
-					verification[i] = max_idx+1;
+	stop = get_time();
+	printf("Kernel initialization, compilation, and launch took %.2lf seconds.\n", stop-start);
+	printf("Beginning event based simulation...\n");
 
-					});
-				});
-		stop = get_time();
-		printf("Kernel initialization, compilation, and launch took %.2lf seconds.\n", stop-start);
-		printf("Beginning event based simulation...\n");
-	}
 
 	// Host reduces the verification array
 	unsigned long long verification_scalar = 0;
