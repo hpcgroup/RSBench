@@ -13,7 +13,7 @@
 // line argument.
 ////////////////////////////////////////////////////////////////////////////////////
 
-void run_event_based_simulation(Input input, SimulationData GSD, unsigned long * vhash_result, double * elapsed_time)
+void run_event_based_simulation(Input input, SimulationData SD, unsigned long * vhash_result, double * elapsed_time)
 {
 	double start, stop;
 	start = get_time();
@@ -35,6 +35,7 @@ void run_event_based_simulation(Input input, SimulationData GSD, unsigned long *
 
 	hipLaunchKernelGGL(xs_lookup_kernel_baseline, dim3(nblocks), dim3(nthreads), 0, 0,  input, GSD );
 	gpuErrchk( hipPeekAtLastError() );
+	size_t sz = input.lookups * sizeof(unsigned long);
 	gpuErrchk( hipMemcpy(SD.verification, GSD.verification, sz, hipMemcpyDeviceToHost) );
 	
 	////////////////////////////////////////////////////////////////////////////////
@@ -42,11 +43,10 @@ void run_event_based_simulation(Input input, SimulationData GSD, unsigned long *
 	////////////////////////////////////////////////////////////////////////////////
 	printf("Reducing verification results...\n");
 
-	size_t sz = input.lookups * sizeof(unsigned long);
 
 	unsigned long verification_scalar = 0;
 	for( int i =0; i < input.lookups; i++ )
-		verification_scalar += SD.verification
+		verification_scalar += SD.verification[i];
 
 	*vhash_result = verification_scalar;
 
