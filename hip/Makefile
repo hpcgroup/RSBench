@@ -6,6 +6,7 @@ COMPILER    = amd
 OPTIMIZE    = yes
 DEBUG       = no
 PROFILE     = no
+OFFLOAD_ARCH ?= gfx90a
 
 #===============================================================================
 # Program name & source code list
