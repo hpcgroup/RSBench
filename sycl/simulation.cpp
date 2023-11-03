@@ -23,15 +23,14 @@ void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vha
 	double stop;
 
 	sycl::queue sycl_q{sycl::default_selector_v};
-	printf("Running on: %s\n", sycl_q.get_device().get_info<cl::sycl::info::device::name>().c_str());
 	printf("Running on: %s\n", sycl_q.get_device().get_info<sycl::info::device::name>().c_str());
-	printf("Initializing device buffers and JIT compiling kernel...\n");
 	
 	////////////////////////////////////////////////////////////////////////////////
 	// Create Device Buffers
 	////////////////////////////////////////////////////////////////////////////////
 
 	// assign SYCL buffer to existing memory
+	printf("Initializing device buffers and JIT compiling kernel...\n");
 	sycl::buffer<int> num_nucs_d {SD.num_nucs,SD.length_num_nucs};
 	sycl::buffer<double> concs_d {SD.concs, SD.length_concs};
 	sycl::buffer<int> mats_d {SD.mats, SD.length_mats};
@@ -111,6 +110,8 @@ void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vha
 	unsigned long long verification_scalar = 0;
 	for( int i = 0; i < in.lookups; i++ )
 		verification_scalar += verification_host[i];
+
+	stop = get_time();
 
 	*vhash_result = verification_scalar;
 	*kernel_init_time = stop-start;
