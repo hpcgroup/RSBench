@@ -1,8 +1,7 @@
 #include "rsbench.h"
 
 // Moves all required data structures to the GPU's memory space
-SimulationData move_simulation_data_to_device( Input in, SimulationData SD )
-{
+SimulationData move_simulation_data_to_device( Input in, SimulationData SD ) {
 	printf("Allocating and moving simulation data to GPU memory space...\n");
 
 	size_t sz;
