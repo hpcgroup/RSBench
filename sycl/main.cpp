@@ -73,6 +73,8 @@ int main(int argc, char * argv[])
 
 	printf("Simulation Complete.\n");
 
+    release_memory(SD);
+
 	// =====================================================================
 	// Print / Save Results and Exit
 	// =====================================================================
