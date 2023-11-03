@@ -24,6 +24,7 @@ void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vha
 
 	sycl::queue sycl_q{sycl::default_selector_v};
 	printf("Running on: %s\n", sycl_q.get_device().get_info<cl::sycl::info::device::name>().c_str());
+	printf("Running on: %s\n", sycl_q.get_device().get_info<sycl::info::device::name>().c_str());
 	printf("Initializing device buffers and JIT compiling kernel...\n");
 	
 	////////////////////////////////////////////////////////////////////////////////
@@ -101,6 +102,7 @@ void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vha
 	sycl::host_accessor verification_host {verification_d, sycl::read_only};
 
 	stop = get_time();
+    
 	printf("Kernel initialization, compilation, and launch took %.2lf seconds.\n", stop-start);
 	printf("Beginning event based simulation...\n");
 
@@ -183,7 +185,7 @@ void calculate_micro_xs( double * micro_xs, int nuc, double E, Input input, INT_
 		RSComplex CDUM;
 		Pole pole = poles[nuc * max_num_poles + i];
 		RSComplex t1 = {0, 1};
-		RSComplex t2 = {cl::sycl::sqrt(E), 0 };
+		RSComplex t2 = {sycl::sqrt(E), 0 };
 		PSIIKI = c_div( t1 , c_sub(pole.MP_EA,t2) );
 		RSComplex E_c = {E, 0};
 		CDUM = c_div(PSIIKI, E_c);
@@ -301,19 +303,19 @@ void calculate_sig_T( int nuc, double E, Input input, DOUBLE_T pseudo_K0RS, RSCo
 
 	for( int i = 0; i < 4; i++ )
 	{
-		phi = pseudo_K0RS[nuc * input.numL + i] * cl::sycl::sqrt(E);
+		phi = pseudo_K0RS[nuc * input.numL + i] * sycl::sqrt(E);
 
 		if( i == 1 )
-			phi -= - cl::sycl::atan( phi );
+			phi -= - sycl::atan( phi );
 		else if( i == 2 )
-			phi -= cl::sycl::atan( 3.0 * phi / (3.0 - phi*phi));
+			phi -= sycl::atan( 3.0 * phi / (3.0 - phi*phi));
 		else if( i == 3 )
-			phi -= cl::sycl::atan(phi*(15.0-phi*phi)/(15.0-6.0*phi*phi));
+			phi -= sycl::atan(phi*(15.0-phi*phi)/(15.0-6.0*phi*phi));
 
 		phi *= 2.0;
 
-		sigTfactors[i].r = cl::sycl::cos(phi);
-		sigTfactors[i].i = -cl::sycl::sin(phi);
+		sigTfactors[i].r = sycl::cos(phi);
+		sigTfactors[i].i = -sycl::sin(phi);
 	}
 }
 
@@ -493,7 +495,7 @@ RSComplex c_div( RSComplex A, RSComplex B)
 
 double c_abs( RSComplex A)
 {
-	return cl::sycl::sqrt(A.r*A.r + A.i * A.i);
+	return sycl::sqrt(A.r*A.r + A.i * A.i);
 }
 
 
@@ -524,8 +526,8 @@ RSComplex fast_cexp( RSComplex z )
 	// will use our own exponetial implementation
 	//double t1 = exp(x);
 	double t1 = fast_exp(x);
-	double t2 = cl::sycl::cos(y);
-	double t3 = cl::sycl::sin(y);
+	double t2 = sycl::cos(y);
+	double t3 = sycl::sin(y);
 	RSComplex t4 = {t2, t3};
 	RSComplex t5 = {t1, 0};
 	RSComplex result = c_mul(t5, (t4));
