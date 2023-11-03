@@ -14,7 +14,7 @@ OFFLOAD_ARCH ?=
 # Program name & source code list
 #===============================================================================
 
-program = rsbench
+program = RSBench
 
 source = \
 main.cpp \
