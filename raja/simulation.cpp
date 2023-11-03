@@ -85,12 +85,12 @@ void run_event_based_simulation(Input input, SimulationData SD, unsigned long *v
 		}
 	});
 
+	rm.copy(SD.verification, GSD.verification);
 	
 	////////////////////////////////////////////////////////////////////////////////
 	// Reduce Verification Results
 	////////////////////////////////////////////////////////////////////////////////
 	printf("Reducing verification results...\n");
-	rm.copy(SD.verification, GSD.verification);
 
 	unsigned long long verification_scalar = 0;
 	for(int i = 0; i < input.lookups; i++ )
