@@ -15,12 +15,12 @@
 void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vhash_result, double * kernel_init_time ) {
 	
 	// Let's create an extra verification array to reduce manually later on
-	//printf("Allocating an additional %.1lf MB of memory for verification arrays...\n", in.lookups * sizeof(int) /1024.0/1024.0);
-	//int * verification_host = (int *) malloc(in.lookups * sizeof(int));
+	printf("Allocating an additional %.1lf MB of memory for verification arrays...\n", in.lookups * sizeof(int) /1024.0/1024.0);
+	int * verification_host = (int *) malloc(in.lookups * sizeof(int));
 	
 	// Timers
 	double start = get_time();
-	double stop;
+	double stop = 0.0;
 
 	sycl::queue sycl_q{sycl::default_selector_v};
 	printf("Running on: %s\n", sycl_q.get_device().get_info<sycl::info::device::name>().c_str());
@@ -38,11 +38,13 @@ void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vha
 	sycl::buffer<Pole> poles_d {SD.poles, SD.length_poles};
 	sycl::buffer<Window> windows_d {SD.windows, SD.length_windows};
 	sycl::buffer<double> pseudo_K0RS_d {SD.pseudo_K0RS, SD.length_pseudo_K0RS};
-	sycl::buffer<int> verification_d {in.lookups};
+	sycl::buffer<int> verification_d {verification_host, in.lookups};
 
 	////////////////////////////////////////////////////////////////////////////////
 	// Define Device Kernel
 	////////////////////////////////////////////////////////////////////////////////
+
+	printf("Beginning event based simulation...\n");
 
 	// queue a kernel to be run, as a lambda
 	sycl_q.submit([&](sycl::handler &cgh) {
@@ -98,13 +100,12 @@ void run_event_based_simulation(Input in, SimulationData SD, unsigned long * vha
 		});
 	});
 
-	sycl::host_accessor verification_host {verification_d, sycl::read_only};
 
 	stop = get_time();
     
 	printf("Kernel initialization, compilation, and launch took %.2lf seconds.\n", stop-start);
-	printf("Beginning event based simulation...\n");
 
+	verification_d.get_host_access();
 
 	// Host reduces the verification array
 	unsigned long long verification_scalar = 0;
