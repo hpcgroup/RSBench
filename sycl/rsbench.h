@@ -5,7 +5,7 @@
 #include<stdint.h>
 #include<float.h>
 #include<assert.h>
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #define PI 3.14159265359
 
