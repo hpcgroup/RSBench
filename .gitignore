@@ -1,6 +1,5 @@
 *.o
 RSBench
-rsbench
 *.cpp1*
 *.cpp4*
 *.ptx

@@ -23,6 +23,9 @@ Umpire_LIB_DIR = $(Umpire_PATH)/lib
 camp_INCLUDE_DIR ?= $(camp_PATH)/include
 camp_LIB_DIR = $(camp_PATH)/lib
 
+RAJA_COMPILER_FLAGS ?=
+RAJA_LINKER_FLAGS ?=
+
 #===============================================================================
 # Program name & source code list
 #===============================================================================
@@ -63,16 +66,16 @@ endif
 
 ifeq ($(TARGET),CUDA)
   CXX = nvcc
-  CUDAFLAGS = -x cu --expt-relaxed-constexpr -forward-unknown-to-host-compiler -extended-lambda -restrict -keep -arch=sm_$(SM_VERSION) 
+  RAJA_COMPILER_FLAGS = -x cu --expt-relaxed-constexpr -forward-unknown-to-host-compiler -extended-lambda -restrict -keep -arch=sm_$(SM_VERSION) 
   CXXFLAGS += $(CUDAFLAGS)
-  LDFLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
+  RAJA_LINKER_FLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
 endif  
 
 ifeq ($(TARGET),HIP)
   CXX = hipcc
-  HIPFLAGS = --offload-arch=$(OFFLOAD_ARCH)
+  RAJA_COMPILER_FLAGS = --offload-arch=$(OFFLOAD_ARCH)
   CXXFLAGS += $(HIPFLAGS)
-  LDFLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
+  RAJA_LINKER_FLAGS += -Xlinker -rpath=$(RAJA_LIB_DIR) -Xlinker -rpath=$(Umpire_LIB_DIR)
 endif
 
 ifeq ($(TARGET), OpenMP)
@@ -83,17 +86,17 @@ endif
 
 default: $(program)
 
-CXXFLAGS += -I./ -I$(RAJA_INCLUDE_DIR) -I$(Umpire_INCLUDE_DIR) -I$(camp_INCLUDE_DIR)
-LDFLAGS += -lRAJA -lumpire -lcamp
-LDFLAGS += -L$(RAJA_LIB_DIR) -L$(Umpire_LIB_DIR) -L$(camp_LIB_DIR)
+RAJA_COMPILER_FLAGS += -I./ -I$(RAJA_INCLUDE_DIR) -I$(Umpire_INCLUDE_DIR) -I$(camp_INCLUDE_DIR)
+RAJA_LINKER_FLAGS += -lRAJA -lumpire -lcamp
+RAJA_LINKER_FLAGS += -L$(RAJA_LIB_DIR) -L$(Umpire_LIB_DIR) -L$(camp_LIB_DIR)
 
 CXXFLAGS += -w
 
 $(program): $(obj) rsbench.h Makefile
-	$(CXX) $(obj) -o $@ $(LDFLAGS)
+	$(CXX) $(obj) -o $@ $(LDFLAGS) $(RAJA_LINKER_FLAGS)
 
 %.o: %.cpp rsbench.h Makefile
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) $(RAJA_COMPILER_FLAGS) -c $< -o $@
 
 clean:
 	rm -rf $(program) $(obj) *.cpp1* *.cpp4* *.ptx *.cubin *.cudafe1* *.fatbin* *.module_id
