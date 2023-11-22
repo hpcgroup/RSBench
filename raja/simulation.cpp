@@ -48,41 +48,39 @@ void run_event_based_simulation(Input input, SimulationData SD, unsigned long *v
 	int nblocks = ceil( (double) input.lookups / (double) nthreads);
 
 	RAJA::forall<policy>(RAJA::RangeSegment(0, input.lookups), [=] RAJA_HOST_DEVICE (int i) {
-		if (i < input.lookups) {
-			uint64_t seed = STARTING_SEED;
-			
-			seed = fast_forward_LCG(seed, 2*i);
-			double E = LCG_random_double(&seed);
-			int mat  = pick_mat(&seed);
+            uint64_t seed = STARTING_SEED;
 
-			double macro_xs[4] = {0};
+            seed = fast_forward_LCG(seed, 2*i);
+            double E = LCG_random_double(&seed);
+            int mat  = pick_mat(&seed);
 
-			calculate_macro_xs(macro_xs,
-							   mat,
-							   E,
-							   input,
-							   GSD.num_nucs,
-							   GSD.mats,
-							   GSD.max_num_nucs,
-							   GSD.concs,
-							   GSD.n_windows,
-							   GSD.pseudo_K0RS,
-							   GSD.windows,
-							   GSD.poles,
-							   GSD.max_num_windows,
-							   GSD.max_num_poles);
+            double macro_xs[4] = {0};
 
-			double max = -DBL_MAX;
-			int max_idx = 0;
-			for (int x = 0; x < 4; x++) {
-				if (macro_xs[x] > max) {
-					max = macro_xs[x];
-					max_idx = x;
-				}
-			}
+            calculate_macro_xs(macro_xs,
+                    mat,
+                    E,
+                    input,
+                    GSD.num_nucs,
+                    GSD.mats,
+                    GSD.max_num_nucs,
+                    GSD.concs,
+                    GSD.n_windows,
+                    GSD.pseudo_K0RS,
+                    GSD.windows,
+                    GSD.poles,
+                    GSD.max_num_windows,
+                    GSD.max_num_poles);
 
-			GSD.verification[i] = max_idx+1;
-		}
+            double max = -DBL_MAX;
+            int max_idx = 0;
+            for (int x = 0; x < 4; x++) {
+                if (macro_xs[x] > max) {
+                    max = macro_xs[x];
+                    max_idx = x;
+                }
+            }
+
+            GSD.verification[i] = max_idx+1;
 	});
 
 	rm.copy(SD.verification, GSD.verification);
