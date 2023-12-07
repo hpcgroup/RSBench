@@ -11,7 +11,7 @@ PROFILE   = no
 # Program name & source code list
 #===============================================================================
 
-program = rsbench
+program = RSBench
 
 source = \
 main.c \
@@ -32,6 +32,11 @@ CFLAGS := -std=gnu99 -Wall
 
 # Linker Flags
 LDFLAGS = -lm
+
+ifeq ($(COMPILER),gnu)
+  CC = gcc
+  CFLAGS += -fopenmp -foffload=nvptx-none='-march=sm_80' -foffload=-O3 -lm
+endif
 
 # Intel Compiler
 ifeq ($(COMPILER),intel)
@@ -91,7 +96,7 @@ $(program): $(obj) rsbench.h Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf rsbench $(obj)
+	rm -rf $(program) $(obj)
 
 edit:
 	vim -p $(source) rsbench.h

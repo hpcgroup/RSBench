@@ -100,7 +100,7 @@ $(program): $(obj) rsbench.h Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf rsbench $(obj)
+	rm -rf $(program) $(obj)
 
 edit:
 	vim -p $(source) rsbench.h
